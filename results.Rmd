@@ -1,0 +1,924 @@
+---
+title: "Figures and Supplementary Material"
+output: pdf_document
+---
+
+## Main text figures
+
+```{r setup, echo=F, message=F, warning=F, fig.height= 3}
+
+knitr::opts_chunk$set(echo=F, message=F, warning=F, fig.height= 3)
+library(tidyverse)
+library(patchwork)
+library(latex2exp)
+library(kableExtra)
+library(factoextra)
+library(mgcv)
+library(lme4)
+library(lmerTest)
+library(MuMIn)
+library(interactions)
+library(dagitty)
+library(ggdag)
+library(effects)
+library(png)
+library(ggnewscale)
+library(ggforce)
+library(paran)
+library(sjPlot)
+library(conflicted)
+library(tidymv)
+library(glmmTMB)
+library(ggeffects)
+library(piecewiseSEM)
+conflicts_prefer(
+  dplyr::select(),
+  dplyr::filter(),
+  dplyr::rename(),
+  dplyr::mutate(),
+  dplyr::summarize(),
+  purrr::map()
+)
+theme_set(theme_classic())
+
+
+exp_data <- read_csv("clean_expdata.csv")
+nat_data <- read_csv("clean_natdata.csv", )
+sixyrdata <- read_csv("clean_sixyrdata.csv")
+nat_data$age_group <- factor(nat_data$age_group, levels = c( "younger", "older"))
+sixyrdata$age_group <- factor(sixyrdata$age_group, levels = c( "younger", "older"))
+
+# make scaled variables and residuals
+nat_data$scaled_settlement_rad <- scale(nat_data$settlement_rad) %>% as.vector()
+sixyrdata$scaled_settlement_rad <- scale(sixyrdata$settlement_rad) %>% as.vector()
+nat_data$growth_resids <- residuals(lm(juv_mean_growth_rate ~ meanTemp_juv, data = nat_data))
+sixyrdata$growth_resids <- residuals(lm(juv_mean_growth_rate ~ meanTemp_juv, data = sixyrdata))
+exp_data$growth_resids <- residuals(lm(juv_mean_growth_rate ~ meanTemp_juv, data = exp_data))
+
+# Make a dataset that excludes rows without 2 day growth
+nat_data_2d <- nat_data %>% filter(!is.na(jg_2d))
+sixyrdata_2d <- sixyrdata %>% filter(!is.na(jg_2d))
+
+```
+
+**Figure 1:**
+
+```{r figure 1,  fig.height = 5}
+
+# generate p-values for plotting
+pv1 <- wilcox.test(nat_data$settlement_rad ~ nat_data$age_group, alt = "less")$p.value %>% round(2)
+pv2 <- wilcox.test(nat_data_2d$jg_2d ~ nat_data_2d$age_group, alt = "greater")$p.value %>% round(2)
+pv1_sixyr <- wilcox.test(sixyrdata$settlement_rad ~ sixyrdata$age_group, alt = "less")$p.value %>% round(2)
+pv2_sixyr <- wilcox.test(sixyrdata_2d$jg_2d ~ sixyrdata_2d$age_group, alt = "greater")$p.value %>% round(2)
+
+p1 <- nat_data %>% 
+    ggplot(aes(x = age_group, y = settlement_rad)) +
+    geom_sina(maxwidth = .6, scale = "count", seed = 1, size = 2, alpha = .3) +
+    stat_summary(fun = median, geom = "point", shape = 95, size = 30, color = "black") + 
+    xlab(" ") +
+    ylab("Size at settlement (um)") +
+    ylim(170, 276)+
+    annotate("text", x=2.3, y=276, label= paste0("p = ", pv1)) 
+  
+p2 <- nat_data_2d %>% 
+      ggplot(aes(x = age_group, y = jg_2d)) +
+      geom_sina(maxwidth = .6, scale = "count", seed = 1, size = 2, alpha = .3) +
+      stat_summary(fun = median, geom = "point", shape = 95, size = 30, color = "hotpink") + 
+      xlab("Survivorship\n(juvenile age)") +
+      ylab("Juvenile 1-2d\ngrowth rate (um/d)") +
+      ylim(3, 8.2)+
+      annotate("text", x=2.3, y=8.2, label= paste0("p = ", pv2, "*")) 
+
+p3 <- sixyrdata %>% 
+    ggplot(aes(x = age_group, y = settlement_rad)) +
+    geom_sina(maxwidth = .6, scale = "count", seed = 1, size = 2, alpha = .3) +
+    stat_summary(fun = median, geom = "point", shape = 95, size = 30, color = "hotpink") + 
+    xlab(" ") +
+    ylab(" ") +
+    annotate("text", x=2.3, y=276, label= "p < 0.01*") 
+  
+p4 <- sixyrdata_2d %>% 
+      ggplot(aes(x = age_group, y = jg_2d)) +
+      geom_sina(maxwidth = .6, scale = "count", seed = 1, size = 2, alpha = .3) +
+      stat_summary(fun = median, geom = "point", shape = 95, size = 30, color = "hotpink") + 
+      xlab("Survivorship\n(juvenile age)") +
+      ylab(" ") +
+      ylim(3, 8.2) +
+      annotate("text", x=2.3, y=8.2, label= "p < 0.01*") 
+  
+  
+## plot
+{p1 + ggtitle("2008-2009")} + 
+  {p3 + ggtitle("2003-2008")} + 
+  p2 + p4 + 
+  plot_annotation(tag_levels = c("A")) &
+  scale_x_discrete(labels = c("2-10 days", "11+ days")) 
+
+```
+
+\newpage
+**Figure 2:**
+
+```{r figure 2, fig.height = 4}
+
+## the models
+fig2_m1 <- lmerTest::lmer(growth_resids ~ scaled_settlement_rad*juv_age + (1|site_code), 
+                          data = nat_data)
+# summary(fig2_m1)
+# r.squaredGLMM(fig2_m1)
+pval_fig2_m1 <- summary(fig2_m1)$coefficients[4,5] %>% round(3)
+
+fig2_m2 <- glmmTMB(growth_resids ~ scaled_settlement_rad*juv_age + (1|site_code), 
+                   data = sixyrdata, REML = FALSE)
+# summary(fig2_m2)
+# r.squaredGLMM(fig2_m2)
+pval_fig2_m2 <- summary(fig2_m2)$coefficients$cond[4,4] %>% round(3)
+## NOTE: got boundary fit problem with lmer() so used different function (glmmTMB)
+## for different optimizer. 
+## The random effect variance is very close to 0 so would also be okay to just use lm(). 
+
+# Define a color palette to use for the figure  
+colpal <- c("lightblue", "dodgerblue", "royalblue4")
+
+plot_setrad_JG_2008 <- 
+  effect("scaled_settlement_rad:juv_age",
+                  fig2_m1,
+                  xlevels = list(
+                    juv_age = c(1, 5, 14), 
+                    scaled_settlement_rad = seq(-2.567507,2.768106, by = 0.2)
+                  )) %>% 
+  data.frame() %>% 
+  mutate(juv_age = as.factor(juv_age)) %>% 
+  ggplot(aes(x = scaled_settlement_rad, y = fit, ymin = lower, ymax = upper)) +
+  geom_point(inherit.aes = FALSE,
+             data = nat_data,
+             aes(x = scaled_settlement_rad, y = growth_resids, 
+                 color = juv_age)) + 
+  scale_color_gradient(low = colpal[1], high = colpal[length(colpal)], guide = F) + 
+  new_scale_color() + 
+  geom_ribbon(aes(fill = juv_age), color = "transparent", alpha = 0.25) + 
+  geom_line(aes(color = juv_age)) +
+  xlab("Size at settlement (um, scaled)") + 
+  ylab("Juvenile growth rate (um/d, residuals)") + 
+  scale_color_manual(name = "Age\n(days)",
+                     values = colpal) + 
+  scale_fill_manual(name = "Age\n(days)",
+                    values = colpal)+
+  annotate("text", x = 2, y = 3,
+           # x = -Inf, y = Inf, hjust = 0, vjust = 1, 
+           label = paste0("p =", pval_fig2_m1, "*")) + 
+  labs(title = "A    2008-2009")   
+
+
+plot_setrad_JG_2003 <- 
+  effects::effect("scaled_settlement_rad:juv_age",
+                  fig2_m2,
+                  xlevels = list(
+                    juv_age = c(1, 5, 14), 
+                    scaled_settlement_rad = seq(-3.055936,3.315024, by = 0.1)
+                  )) %>% 
+  data.frame() %>% 
+  mutate(juv_age = as.factor(juv_age)) %>% 
+  ggplot(aes(x = scaled_settlement_rad, y = fit, ymin = lower, ymax = upper)) +
+  geom_point(inherit.aes = FALSE,
+             data = sixyrdata,
+             aes(x = scaled_settlement_rad, y = growth_resids, 
+                 color = juv_age)) + 
+  scale_color_gradient(low = colpal[1], high = colpal[length(colpal)], guide = "none") + 
+  new_scale_color() + 
+  geom_ribbon(aes(fill = juv_age), color = "transparent", alpha = 0.25) + 
+  geom_line(aes(color = juv_age)) +
+  xlab("Size at settlement (um, scaled)") + 
+  ylab("Juvenile growth rate (um/d, residuals)") + 
+  scale_color_manual(name = "Age\n(days)",
+                     values = colpal) + 
+  scale_fill_manual(name = "Age\n(days)",
+                    values = colpal)+
+    annotate("text", x = 2, y = 2.5,
+              label = paste0("p =", pval_fig2_m2, "*")) + 
+  labs(title = "B    2003-2008")
+
+plot_setrad_JG_2008 + plot_setrad_JG_2003 + 
+  # plot_annotation(tag_levels = c("A")) +
+  plot_layout(guides = "collect") &
+  theme(legend.position = "right",
+        plot.title.position = 'plot')
+```
+
+\newpage
+**Figure 3:**
+
+
+```{r figure 3, fig.height = 4}
+
+nat_pca_all <- nat_data %>% 
+  select(hide_num_of_times, shelter_time_total_sec, shelter_time_mean_sec, 
+         max_V_cm, max_H_cm) %>% 
+  rename(`Number of times sheltering` = hide_num_of_times,
+      `Total shelter time` = shelter_time_total_sec, 
+         `Mean shelter time` = shelter_time_mean_sec, 
+         `Max vertical distance` = max_V_cm, 
+         `Max horizontal distance` = max_H_cm ) %>% 
+  scale() %>% prcomp()
+
+# Parallel analysis suggests that we should proceed
+# with three PC axes (Adjusted eigenvalue > 1)
+# Uncomment to view:
+# 
+# paran(nat_data %>%
+#   select(hide_num_of_times, shelter_time_total_sec, shelter_time_mean_sec,
+#          max_V_cm, max_H_cm) %>%
+#   rename(`Number of times sheltering` = hide_num_of_times,
+#       `Total shelter time` = shelter_time_total_sec,
+#          `Mean shelter time` = shelter_time_mean_sec,
+#          `Max vertical distance` = max_V_cm,
+#          `Max horizontal distance` = max_H_cm ) %>%
+#   scale())
+
+# make new columns with the PC axis scores
+nat_data$pc1 <- nat_pca_all$x[, 1]
+nat_data$pc2 <- nat_pca_all$x[, 2]
+nat_data$pc3 <- nat_pca_all$x[, 3]
+
+# make plot
+fviz_pca_biplot(nat_pca_all, label = "var", col.ind = "darkslategray3", col.var = "black", 
+                repel = TRUE, axes =  c(1,2), title = " ")
+
+```
+
+\newpage
+**Figure 4:**
+
+```{r read in DAGs}
+
+dag1 <- readPNG("dag-figs/dag1.png")
+dag2 <- readPNG("dag-figs/dag2.png")
+dag3 <- readPNG("dag-figs/dag3.png")
+
+```
+
+```{r figure 4a, fig.height = 2, fig.width=5.4, fig.align='center'}
+
+dag1_png <- ggplot2::ggplot() + ggplot2::annotation_custom(grid::rasterGrob(dag1,
+                                                width=ggplot2::unit(5.3,"in"),
+                                                height=ggplot2::unit(0.85,"in")),
+                               -Inf, Inf, -Inf, Inf) + theme(axis.line.y = element_blank(),
+                                                             axis.line.x = element_blank())
+dag1_png
+
+
+```
+
+```{r figure 4b thru e}
+
+# select data columns to run the piecewise SEM
+fig4_data <- nat_data %>% 
+  select(pc1, pc2, pc3, scaled_settlement_rad, site_code, juv_age, growth_resids)
+
+# If we wanted to use all the random effects, we would use the following code,
+# dropping random effects for two models due to singular boundary issues.
+# BUT, we did not use this code because even though the mixed models ran,
+# they had near-zero variance estimates for some of the random effects.
+# This led to psem() being unable to calculate the Chi-square stat. 
+# Per the recommendation of piecewiseSEM's author 
+# (https://github.com/jslefche/piecewiseSEM/issues/276),
+# we tried to use glmmTMB instead of lmer() because there was better
+# model convergence due to a better optimzer. In the end, we could only include
+# one mixed model. See below for the actual model used (uncommented).
+#
+# fig4_modelList <- psem(
+#   lm(pc1 ~ scaled_settlement_rad, fig4_data), # singular boundary with mixed model, so removed random effect
+#   lmerTest::lmer(pc2 ~ scaled_settlement_rad + (1|site_code), fig4_data),
+#   lmerTest::lmer(pc3 ~ scaled_settlement_rad + (1|site_code), fig4_data),
+#   lm(juv_age ~ growth_resids + scaled_settlement_rad + pc1 + pc2 + pc3, fig4_data), # singular boundary again
+#   lmerTest::lmer(growth_resids ~ pc1 + pc2 + pc3 + scaled_settlement_rad + (1|site_code), fig4_data),
+#   fig4_data
+# )
+# summary(fig4_modelList)
+
+
+# run piecewise SEM
+fig4_modelList <- psem(
+  lm(pc1 ~ scaled_settlement_rad, fig4_data), 
+  lm(pc2 ~ scaled_settlement_rad, fig4_data), 
+  glmmTMB(pc3 ~ scaled_settlement_rad + (1|site_code), fig4_data),
+  lm(juv_age ~ growth_resids + scaled_settlement_rad + pc1 + pc2 + pc3, fig4_data), 
+  lm(growth_resids ~ pc1 + pc2 + pc3 + scaled_settlement_rad, fig4_data),
+  fig4_data
+)
+# summary(fig4_modelList)
+
+
+# run component models for plotting
+m_4_1 <- lm(pc1 ~ scaled_settlement_rad, data = nat_data)
+m_4_2 <- lm(pc2 ~ scaled_settlement_rad, data = nat_data)
+m_4_3 <- glmmTMB(pc3 ~ scaled_settlement_rad + (1|site_code), data = nat_data)
+
+# calculate p-values for plotting
+p_m_4_1 <- summary(fig4_modelList, .progressBar = FALSE)$coefficients$P.Value[1] %>% round(3)
+p_m_4_2 <- summary(fig4_modelList, .progressBar = FALSE)$coefficients$P.Value[2] %>% round(3)
+p_m_4_3 <- summary(fig4_modelList, .progressBar = FALSE)$coefficients$P.Value[3] %>% round(3)
+
+# calculate R2 values for plotting
+R2m_4_1 <- summary(fig4_modelList, .progressBar = FALSE)$R2$Marginal[1] %>% round(2)
+R2m_4_2 <- summary(fig4_modelList, .progressBar = FALSE)$R2$Marginal[2] %>% round(2)
+R2m_4_3 <- summary(fig4_modelList, .progressBar = FALSE)$R2$Marginal[3] %>% round(2)
+
+
+# make plots
+dag1_plot1 <- ggpredict(m_4_1, terms = "scaled_settlement_rad") %>% 
+  ggplot(aes(x = x, y = predicted)) +
+  geom_point(inherit.aes = FALSE, 
+             data = nat_data, aes(x = scaled_settlement_rad, y = pc1)) +
+  geom_line(color = "hotpink", linewidth = 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.1) +
+  xlab("Size at settlement\n(um, scaled)") +
+  ylab("PC1\n(foraging vs sheltering)") +
+  ylim(-4,6) +
+  annotate("text", x=1.8, y=6,  hjust = 0.5, 
+           label = TeX(paste("$R^2 = $", R2m_4_1))) + 
+    annotate("text", x=1.8, y=5, hjust = 0.5,
+             label = TeX(paste0("p = ",  p_m_4_1, "*"))
+           )
+          
+dag1_plot2 <- nat_data %>% 
+  ggplot(aes(x = scaled_settlement_rad, y = pc2)) +
+  geom_point() +
+  xlab("Size at settlement\n(um, scaled)") +
+  ylab("PC2") +
+  annotate("text", x=2, y=7.7,  hjust = 0.5, 
+           label = "n.s.") 
+
+dag1_plot3 <- ggpredict(m_4_3, terms = "scaled_settlement_rad") %>% 
+  ggplot(aes(x = x, y = predicted)) +
+  geom_point(inherit.aes = FALSE, data = nat_data, aes(x = scaled_settlement_rad, y = pc3)) +
+  geom_line(color = "hotpink", linewidth = 1) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), alpha = 0.1) +
+  xlab("Size at settlement\n(um, scaled)") +
+  ylab("PC3") +
+  ylim(-5,5.25) +
+  annotate("text", x=1.6, y=5.25,  hjust = 0.5,
+           label = TeX(paste("$R^2 = $", R2m_4_3))) +
+    annotate("text", x=1.7, y=4.25, hjust = 0.5,
+             label = TeX(paste0("p = ",  p_m_4_3, "*"))) 
+
+dag1_plot4 <- summary(fig4_modelList, .progressBar = FALSE)$coefficients %>% 
+  select(1:8) %>% 
+    filter(Response == "juv_age") %>%  
+  select(-1) %>% 
+  mutate(se_low = Estimate - Std.Error*1.96,
+           se_high = Estimate + Std.Error*1.96,
+         color = as.factor(ifelse(P.Value < 0.05, 1, 0))) %>% 
+    ggplot(aes(x = Estimate, y = Predictor, color = color)) + 
+    geom_point() + 
+    geom_linerange(aes(xmin=se_low, xmax=se_high)) +
+    geom_vline(xintercept = 0, linetype = 3, alpha = 2) +
+    xlab("Path coefficient") +
+    ylab(" ") +
+    scale_y_discrete(labels=c("scaled_settlement_rad" = "Size at\nsettlement", 
+                              "pc1" = "PC1",
+                              "pc2" = "PC2",
+                              "pc3" = "PC3",
+                              "meanTemp_juv" = "Mean\ntemperature",
+                              "growth_resids" = "Juvenile\ngrowth rate")) +
+  theme(legend.position = "none",
+        plot.title=element_text(size=10),
+        axis.text.y = element_text(size=10))+
+  scale_color_manual(values = c("black", "deeppink2")) +
+    ggtitle("Predicting survival (juvenile age)")+
+  theme(legend.position = "none")
+
+dag1_plot5 <- summary(fig4_modelList, .progressBar = FALSE)$coefficients %>% 
+  select(1:8) %>% 
+    filter(Response == "growth_resids") %>%  
+  select(-1) %>% 
+  mutate(se_low = Estimate - Std.Error*1.96,
+         se_high = Estimate + Std.Error*1.96,
+         color = as.factor(ifelse(P.Value < 0.05, 1, 0))) %>% 
+  ggplot(aes(x = Estimate, y = Predictor, color = color)) + 
+  geom_point() + 
+  geom_linerange(aes(xmin=se_low, xmax=se_high)) +
+  geom_vline(xintercept = 0, linetype = 3, alpha = 2) +
+  xlab("Path coefficient") +
+  ylab(" ") +
+  scale_y_discrete(labels=c("pc1" = "PC1", 
+                            "pc2" = "PC2", 
+                            "pc3" = "PC3", 
+                            "meanTemp_juv" = "Mean\ntemperature",
+                            "scaled_settlement_rad" = "Size at\nsettlement")) +
+  scale_color_manual(values = c("black")) +
+  ggtitle("Predicting juvenile growth rate") +
+  theme(legend.position = "none",
+        plot.title=element_text(size=10),
+        axis.text.y = element_text(size=10))
+
+dag1_plot1 + dag1_plot2 + dag1_plot3 
+dag1_plot4 + dag1_plot5
+
+```
+
+\newpage
+**Figure 5:**
+
+```{r figure 5a, fig.height=2.7, fig.width=5.7, fig.align='center'}
+dag2_png <- ggplot2::ggplot() + ggplot2::annotation_custom(grid::rasterGrob(dag2,
+                                                width=ggplot2::unit(0.9,"npc"),
+                                                height=ggplot2::unit(1.01,"npc")),
+                               -Inf, Inf, -Inf, Inf) + theme(axis.line.y = element_blank(),
+                                                             axis.line.x = element_blank())
+dag2_png
+```
+
+```{r figure 5b onwards, fig.height = 5.5}
+
+# select data columns to run the piecewise SEM
+fig5_data <- nat_data %>% 
+  select(pc1, pc2, pc3, adult_density_per7m2, num_times_chased_by_conspecifics, 
+         scaled_settlement_rad, site_code, juv_age, growth_resids,
+         hide_num_of_times, shelter_time_total_sec, shelter_time_mean_sec, max_V_cm, max_H_cm) %>% 
+  drop_na()
+
+# run piecewise SEM
+# random effect in several component models was near 0, so drop to get pSEM to converge
+fig5_modelList <- psem(
+  glm(num_times_chased_by_conspecifics ~ adult_density_per7m2 + scaled_settlement_rad + pc1 + pc2 + pc3, data = fig5_data, family = "poisson"),
+  lmerTest::lmer(growth_resids ~ adult_density_per7m2 + num_times_chased_by_conspecifics*scaled_settlement_rad + num_times_chased_by_conspecifics + pc3 + pc1 + pc2 + (1|site_code), data = fig5_data),
+  lmerTest::lmer(juv_age ~ growth_resids + num_times_chased_by_conspecifics*scaled_settlement_rad + num_times_chased_by_conspecifics + pc3 + pc2 + pc1 + adult_density_per7m2 + (1|site_code), data = fig5_data),
+  lm(pc1 ~ scaled_settlement_rad, fig5_data),
+  lm(pc2 ~ scaled_settlement_rad, fig5_data), 
+  glmmTMB(pc3 ~ scaled_settlement_rad + (1|site_code), fig5_data),
+  fig5_data
+)
+# summary(fig5_modelList)
+
+
+# run component models for plotting
+m_6_2 <- lmerTest::lmer(growth_resids ~ adult_density_per7m2 + num_times_chased_by_conspecifics*scaled_settlement_rad + (1|site_code), data = nat_data)
+
+
+dag2_plot1 <- summary(fig5_modelList, .progressBar = FALSE)$coefficients %>% 
+  select(1:8) %>% 
+    filter(Response == "num_times_chased_by_conspecifics") %>%  
+  select(-1) %>% 
+  mutate(se_low = Estimate - Std.Error*1.96,
+           se_high = Estimate + Std.Error*1.96,
+         color = as.factor(ifelse(P.Value < 0.05, 1, 0))) %>% 
+    ggplot(aes(x = Estimate, y = Predictor, color = color)) +
+  geom_point() + 
+  geom_linerange(aes(xmin=se_low, xmax=se_high)) +
+  geom_vline(xintercept = 0, linetype = 3, alpha = 2) +
+  xlab("Path coefficient") +
+  ylab(" ") +
+  scale_y_discrete(labels=c("adult_density_per7m2" = "Adult density", 
+                            "scaled_settlement_rad" = "Size at\nsettlement",
+                            "pc1" = "PC1", 
+                            "pc2" = "PC2", 
+                            "pc3" = "PC3")) +
+  scale_color_manual(values = c("black", "deeppink2")) +
+  ggtitle("Predicting times chased\nby conspecifics") +
+  theme(legend.position = "none",
+        plot.title=element_text(size=9),
+        axis.text.y = element_text(size=9),
+        axis.title.x = element_text(size=10))
+
+dag2_plot2 <- plot_model(m_6_2, 
+                         type = "pred", 
+                         terms = c("scaled_settlement_rad", "num_times_chased_by_conspecifics [0, 3]" ),
+                         legend.title = "Times chased\nby conspecifics", 
+                         title = "", 
+                         axis.title = c("Size at settlement (um, scaled)", "Juvenile growth rate\n(um/d, residuals)"), 
+                         colors = c("darkslategray3", "deeppink2")) +
+  theme(legend.position = c(0.75,0.85),
+        legend.title = element_text(size=9),
+        axis.title.y = element_text(size=10),
+        axis.title.x = element_text(size=10))
+
+dag2_plot3 <- summary(fig5_modelList, .progressBar = FALSE)$coefficients %>% 
+  select(1:8) %>% 
+    filter(Response == "growth_resids") %>%  
+  select(-1) %>% 
+  mutate(se_low = Estimate - Std.Error*1.96,
+           se_high = Estimate + Std.Error*1.96,
+         color = as.factor(ifelse(P.Value < 0.05, 1, 0))) %>% 
+    ggplot(aes(x = Estimate, y = Predictor, color = color)) +
+  geom_point() + 
+  geom_linerange(aes(xmin=se_low, xmax=se_high)) +
+  geom_vline(xintercept = 0, linetype = 3, alpha = 2) +
+  xlab("Path coefficient") +
+  ylab(" ") +
+  scale_y_discrete(labels=c("adult_density_per7m2" = "Adult density", 
+                            "num_times_chased_by_conspecifics" = "Times chased",
+                            "num_times_chased_by_conspecifics:scaled_settlement_rad" = "Times chased x\nsize at settlement",
+                            "scaled_settlement_rad" = "Size at\nsettlement",
+                            "pc1" = "PC1", 
+                            "pc2" = "PC2", 
+                            "pc3" = "PC3")) +
+  scale_color_manual(values = c("black", "deeppink2")) +
+  ggtitle("Predicting juvenile growth rate") +
+  theme(legend.position = "none",
+        plot.title=element_text(size=9),
+        axis.text.y = element_text(size=9),
+        axis.title.x = element_text(size=10))
+
+dag2_plot4 <- summary(fig5_modelList, .progressBar = FALSE)$coefficients %>% 
+  select(1:8) %>% 
+    filter(Response == "juv_age") %>%  
+  select(-1) %>% 
+  mutate(se_low = Estimate - Std.Error*1.96,
+           se_high = Estimate + Std.Error*1.96,
+         color = as.factor(ifelse(P.Value < 0.05, 1, 0))) %>% 
+    ggplot(aes(x = Estimate, y = Predictor, color = color)) + 
+  geom_point() + 
+  geom_linerange(aes(xmin=se_low, xmax=se_high)) +
+  geom_vline(xintercept = 0, linetype = 3, alpha = 2) +
+  xlab("Path coefficient") +
+  ylab(" ") +
+  scale_y_discrete(labels=c("adult_density_per7m2" = "Adult density", 
+                            "num_times_chased_by_conspecifics" = "Times chased",
+                            "num_times_chased_by_conspecifics:scaled_settlement_rad" = "Times chased x\nsize at settlement",
+                            "scaled_settlement_rad" = "Size at settlement",
+                            "growth_resids" = "Juvenile growth rate",
+                            "pc1" = "PC1", 
+                            "pc2" = "PC2", 
+                            "pc3" = "PC3")) +
+  scale_color_manual(values = c("black", "deeppink2")) +
+  ggtitle("Predicting survival (juvenile age)") +
+  theme(legend.position = "none",
+        plot.title=element_text(size=9),
+        axis.text.y = element_text(size=9),
+        axis.title.x = element_text(size=10))
+
+dag2_plot1 + dag2_plot3 +
+dag2_plot2 + dag2_plot4
+
+```
+
+
+\newpage
+## Supplementary Figures
+
+
+**Figure S1:**
+
+```{r figure S1, fig.width = 3}
+
+# calculate correlation to use in plot
+cor.r <- cor.test(sixyrdata$jg_2d, sixyrdata$juv_mean_growth_rate)$estimate %>% round(2)
+cor.pv <- cor.test(sixyrdata$jg_2d, sixyrdata$juv_mean_growth_rate)$p.value %>% round(3)
+
+# plot
+{ggplot(data = sixyrdata, aes(x = jg_2d, y = juv_mean_growth_rate)) + 
+  geom_point() +
+  xlab("Juvenile 1-2d\ngrowth rate (um/d)") +
+  ylab("Juvenile growth rate (um/d)") + 
+  annotate("text", x=6, y=8, label= paste0("r = ", cor.r, ", p < 0.01 "))  }
+
+
+```
+
+\newpage
+**Figure S2:**
+
+```{r figure s2}
+
+# bite_model <- glm(num_bites ~ max_V_cm, data = nat_data, family = "poisson") ## overdispersion detected
+# E2 <- resid(bite_model, type = "pearson")
+# N  <- nrow(nat_data %>% filter(!(is.na(num_bites))))
+# p  <- length(coef(bite_model))   
+# sum(E2^2) / (N - p) ## lots of overdispersion
+#
+# Because of the oversdispersion above, we can switch from poisson
+# to a negative binomial model  
+
+bite_model <- glm.nb(num_bites ~ max_V_cm, data = nat_data) ## better
+# E2 <- resid(bite_model, type = "pearson")
+# N  <- nrow(nat_data %>% filter(!(is.na(num_bites))))
+# p  <- length(coef(bite_model))
+# sum(E2^2) / (N - p) ## a bit underdispersed, 
+# but no 0's in the data so not 0-inflateds
+
+
+## McFadden's Pseudo-R2
+pseudoR2 <- round(1 - bite_model$deviance/bite_model$null.deviance, 2)
+
+nat_data %>% 
+  ggplot(aes(x = max_V_cm, y = num_bites)) +
+  geom_point() +
+  geom_smooth(method="glm.nb", color = "hotpink") +
+  theme_classic() +
+  ylab("Number of bites\nin the water column") +
+  xlab("Maximum vertical distance\ntraveled in water column (cm)") +
+  xlim(0,13) +
+  annotate("text", x = 10, y = 77, label = TeX(paste("pseudo", "$R^2 = $", pseudoR2))) +
+  annotate("text", x = 10, y = 71, label = "p < 0.01*")
+
+```
+
+\newpage
+**Figure S3:**
+
+```{r figure s3, fig.height=7}
+
+## age predicting size at settlement
+age_ss <- gam(settlement_rad ~ s(juv_age), data = nat_data, method = "REML")
+# gam.check(age_ss) # looks good
+# summary(age_ss)
+# plot(age_ss, page = 1, residuals = T, coef(age_ss)[1], shade = T, ylab = "Size at Settlement (scaled)", xlab = "Juvenile Age")
+
+## age predicting juvenile growth from 1 to 2 days
+age_jg12 <- gam(jg_2d ~ s(juv_age) + meanTemp_juv, data = nat_data_2d, method = "REML")
+# gam.check(age_jg12) # k is too low, but if I increase it I run out of data to fit that many functions. I think this is the best I can do. edf is small. plots look okay
+# summary(age_jg12)
+# plot(age_jg12, page = 1, residuals = T, coef(age_jg12)[1], shade = T, ylab = "Juvenile Growth 1-2 days (residuals)", xlab = "Juvenile Age")
+
+## age predicting mean juvenile growth across the juvenile period
+age_jg <- gam(juv_mean_growth_rate ~ s(juv_age) + meanTemp_juv, data = nat_data, method = "REML")
+# gam.check(age_jg) # k is too low, but if I increase it I run out of data to fit that many functions. I think this is the best I can do. edf is small
+# summary(age_jg)
+# plot(age_jg, page = 1, residuals = T, coef(age_jg)[1], shade = T, ylab = "Mean Juvenile Growth (residuals)", xlab = "Juvenile Age")
+
+pv1 <- summary(age_ss)$s.table[,4] %>% round(2)
+pv2 <- summary(age_jg12)$s.table[,4] %>% round(2)
+pv3 <- summary(age_jg)$s.table[,4] %>% round(2)
+
+p1 <- ggplot(data = predict_gam(age_ss), aes(x = juv_age, y = fit)) + 
+  geom_smooth_ci(size = 1, color = "black") +
+  geom_jitter(data = nat_data, aes(x = juv_age, y = settlement_rad), width = 0.1) +
+  annotate("text", x=12, y=275, label= paste0("p = ", pv1)) + 
+  xlab(" ") +
+  ylab("Size at settlement (um)") +
+  ylim(170, 275)+
+  geom_vline(xintercept = 14.5, color = "orange", linetype = 2) 
+
+p2 <- ggplot(data = predict_gam(age_jg12, values = list(meanTemp_juv = mean(nat_data_2d$meanTemp_juv_2d))), aes(x = juv_age, y = fit)) + 
+  geom_smooth_ci(size = 1, color = "hotpink") + 
+  geom_jitter(data = nat_data_2d, aes(x = juv_age, y = jg_2d), width = 0.1) +
+  annotate("text", x=12, y=8, label= "p < 0.01*") + 
+  xlab(" ") +
+  ylab("Juvenile 1-2d\ngrowth rate (um/d)") +
+  ylim(3, 9) +
+  geom_vline(xintercept = 14.5, color = "orange", linetype = 2) 
+
+p3 <- ggplot(data = predict_gam(age_jg, values = list(meanTemp_juv = mean(nat_data$meanTemp_juv))), aes(x = juv_age, y = fit)) + 
+  geom_smooth_ci(size = 1, color = "hotpink") + 
+  geom_jitter(data = nat_data, aes(x = juv_age, y = juv_mean_growth_rate), width = 0.1) +
+  annotate("text", x=12, y=8.5, label= "p < 0.01*") + 
+  xlab("Juvenile age (days)") +
+  ylab("Juvenile growth rate (um/d)") +
+  ylim(3, 9) +
+  geom_vline(xintercept = 14.5, color = "orange", linetype = 2) 
+
+
+## age predicting size at settlement
+age_ss <- gam(settlement_rad ~ s(juv_age, k = 3), data = sixyrdata, method = "REML")
+# gam.check(age_ss) # looks okay
+# summary(age_ss)
+# plot(age_ss, page = 1, residuals = T, coef(age_ss)[1], shade = T, ylab = "Size at Settlement (scaled)", xlab = "Juvenile Age")
+
+## age predicting juvenile growth from 1 to 2 days
+age_jg12 <- gam(jg_2d ~ s(juv_age) + meanTemp_juv, data = sixyrdata_2d, method = "REML")
+# gam.check(age_jg12) # this looks good
+# summary(age_jg12)
+# plot(age_jg12, page = 1, residuals = T, coef(age_jg12)[1], shade = T, ylab = "Juvenile Growth 1-2 days (residuals)", xlab = "Juvenile Age")
+
+## age predicting mean juvenile growth across the juvenile period
+age_jg <- gam(juv_mean_growth_rate ~ s(juv_age) + meanTemp_juv, data = sixyrdata, method = "REML")
+# gam.check(age_jg) # k is too low, but if I increase it I run out of data to fit that many functions. I think this is the best I can do. edf is small, plots look good
+# summary(age_jg)
+# plot(age_jg, page = 1, residuals = T, coef(age_jg)[1], shade = T, ylab = "Mean Juvenile Growth (residuals)", xlab = "Juvenile Age")
+
+
+pv1 <- summary(age_ss)$s.table[,4] %>% round(2)
+pv2 <- summary(age_jg12)$s.table[,4] %>% round(2)
+pv3 <- summary(age_jg)$s.table[,4] %>% round(2)
+
+p4 <- ggplot(data = predict_gam(age_ss), aes(x = juv_age, y = fit)) + 
+  geom_point(data = sixyrdata, aes(x = juv_age, y = settlement_rad)) +
+  geom_smooth_ci(size = 1, color = "hotpink") +
+  geom_vline(xintercept = 14.5, color = "orange", linetype = 2) +
+  xlab(" ") +
+  ylab(" ") +
+  annotate("text", x=28, y=275, label= "p < 0.01*") 
+
+p5 <- ggplot(data = predict_gam(age_jg12, values = list(meanTemp_juv = mean(sixyrdata_2d$meanTemp_juv_2d))), aes(x = juv_age, y = fit)) + 
+  geom_point(data = sixyrdata_2d, aes(x = juv_age, y = jg_2d)) +
+  geom_smooth_ci(size = 1, color = "hotpink") + 
+  annotate("text", x=28, y=8, label= "p < 0.01*") + 
+  geom_vline(xintercept = 14.5, color = "orange", linetype = 2) +
+  ylim(3, 9) +
+  xlab(" ") +
+  ylab(" ") 
+
+p6 <- ggplot(data = predict_gam(age_jg, values = list(meanTemp_juv = mean(sixyrdata$meanTemp_juv))), aes(x = juv_age, y = fit)) + 
+  geom_point(data = sixyrdata, aes(x = juv_age, y = juv_mean_growth_rate)) +
+  geom_smooth_ci(size = 1, color = "hotpink") + 
+  annotate("text", x=28, y=8.5, label= "p < 0.01*") + 
+  xlab("Juvenile age (days)") +
+  ylab(" ") +
+  ylim(3, 9) +
+  geom_vline(xintercept = 14.5, color = "orange", linetype = 2) 
+
+
+{p1 + ggtitle("2008-2009")} + {p4 + ggtitle("2003-2008")} + p2 + p5 + p3 + p6 +
+  plot_layout(nrow = 3) +
+  plot_annotation(tag_levels = c("A"))
+
+
+```
+
+
+\newpage
+**Figure S4:**
+
+```{r figure S4, fig.height=4}
+
+fviz_pca_biplot(nat_pca_all, label = "var", col.ind = "darkslategray3", col.var = "black", 
+                repel = TRUE, axes =  c(2,3), title = " ")
+
+```
+
+\newpage
+**Figure S5:**
+
+```{r figure S5a, fig.height=2}
+
+dag3_png <- ggplot2::ggplot() + ggplot2::annotation_custom(grid::rasterGrob(dag3,
+                                                width=ggplot2::unit(.6,"npc"),
+                                                height=ggplot2::unit(.5,"npc")),
+                               -Inf, Inf, -Inf, Inf) + theme(axis.line.y = element_blank(),
+                                                             axis.line.x = element_blank())
+
+dag3_png
+```
+
+```{r figure S5b, fig.width = 4, fig.align='center'}
+
+speed_growth_cor <- cor.test(exp_data$swim_speed, exp_data$growth_resids)
+
+exp_data %>% 
+    ggplot(aes(x = swim_speed, y = growth_resids)) + 
+    geom_point() +
+    xlab("Swim speed (cm/s)") +
+    ylab("Juvenile growth rate (um/d)") +
+    annotate("text", x = 65, y = 1, label = paste0("r = ", round(speed_growth_cor$estimate,1), "; p = ", round(speed_growth_cor$p.value,2)))
+
+```
+
+
+
+\newpage
+## Supplementary Tables
+
+```{r tables, warning=FALSE}
+
+# table 1 - bite model -----------
+summary(bite_model)$coefficients %>% 
+  as.data.frame() %>% 
+  rownames_to_column("variable") %>% 
+  mutate(variable = case_when(variable == "max_V_cm" ~ "Max vertical distance",
+                              variable == "(Intercept)" ~ "(Intercept)")) %>% 
+  column_to_rownames("variable") %>% 
+  rename(`p value` = `Pr(>|z|)`) %>% 
+  mutate_at(1:3, round, 3) %>% 
+  mutate(`p value` = scales::pvalue(`p value`)) %>% 
+  kable(format="latex",
+        booktabs=TRUE,
+        caption="Generalized linear model (GLM) with a negative binomial error structure predicting number of times fish take bites in the water column.",digits=2) %>% 
+  kable_styling(latex_options = "HOLD_position") %>% 
+  row_spec(2, bold = TRUE)
+
+# table 2 - fig 2 table current data ---------
+summary(fig2_m1)$coefficients %>%
+  as.data.frame() %>% 
+  rownames_to_column("variable") %>% 
+  mutate(variable = case_when(variable == "scaled_settlement_rad" ~ "Settlement size",
+                              variable == "juv_age" ~ "Juvenile age",
+                              variable == "meanTemp_juv" ~ "Mean temperature",
+                              variable == "scaled_settlement_rad:juv_age" ~ "Settlement size x juvenile age",
+                              variable == "(Intercept)" ~ "(Intercept)")) %>% 
+  column_to_rownames("variable") %>% 
+  rename(`p value` = `Pr(>|t|)`) %>% 
+  mutate_at(1:4, round, 3) %>% 
+  mutate(`p value` = scales::pvalue(`p value`)) %>% 
+  kable(format="latex",
+      booktabs=TRUE,
+      caption="Linear mixed effects model (LMM) predicting juvenile growth rate (um/d, residuals) in the 2008-2009 dataset, with random intercepts for collection site.",digits=2) %>% 
+  kable_styling(latex_options = "HOLD_position") %>% 
+  row_spec(c(3,4), bold = TRUE)
+
+# table 3 - fig 2 table 6yr data ----------
+summary(fig2_m2)$coefficients$cond %>%
+  as.data.frame() %>% 
+  rownames_to_column("variable") %>% 
+  mutate(variable = case_when(variable == "scaled_settlement_rad" ~ "Settlement size",
+                              variable == "juv_age" ~ "Juvenile age",
+                              variable == "meanTemp_juv" ~ "Mean temperature",
+                              variable == "scaled_settlement_rad:juv_age" ~ "Settlement size x juvenile age",
+                              variable == "(Intercept)" ~ "(Intercept)")) %>% 
+  column_to_rownames("variable") %>% 
+  rename(`p value` = `Pr(>|z|)`) %>% 
+  mutate_at(1:4, round, 3) %>% 
+  mutate(`p value` = scales::pvalue(`p value`)) %>% 
+  kable(format="latex",
+      booktabs=TRUE,
+      caption="LMM predicting juvenile growth rate (um/d, residuals) in the 2003-2008 dataset, with random intercepts for collection site.",digits=2) %>% 
+  kable_styling(latex_options = "HOLD_position") %>% 
+  row_spec(3:5, bold = TRUE)
+
+
+
+# new table 4 - psem coefficients for DAG in Fig 4a ----------
+summary(fig4_modelList, .progressBar = FALSE)$coefficients %>% 
+  select(1:3, 8, 4:7) %>% 
+  mutate_at(3:7, round, 2) %>% 
+  mutate_at(8, round, 3) %>% 
+  mutate_at(6, round, 0) %>% 
+  mutate(Response = case_when(Response == "pc1" ~ "PC1",
+                              Response == "pc2" ~ "PC2", 
+                              Response == "pc3" ~ "PC3",
+                              Response == "juv_age" ~ "Juvenile age",
+                              Response == "growth_resids" ~ "Juv. growth rate")) %>% 
+  mutate(Predictor = case_when(Predictor == "pc1" ~ "PC1",
+                              Predictor == "pc2" ~ "PC2", 
+                              Predictor == "pc3" ~ "PC3",
+                              Predictor == "scaled_settlement_rad" ~ "Settlement size",
+                              Predictor == "growth_resids" ~ "Juv. growth rate")) %>% 
+  mutate(P.Value = scales::pvalue(P.Value)) %>%
+  kable(format="latex",
+      booktabs=TRUE,
+      caption=paste0("Path coefficients for the DAG in Figure 4A. The model is well fit to the data (C-statistic = ", round(summary(fig4_modelList, .progressBar = FALSE)$Cstat$Fisher.C, 2), ", df = ", summary(fig4_modelList, .progressBar = FALSE)$Cstat$df, ", ", "p-value = ", summary(fig4_modelList, .progressBar = FALSE)$Cstat$P.Value, "). A p-value < 0.05 would indicate that the hypothesized structure in the DAG is not supported by the data. Estimates correspond to partial regression coefficients and can be interpreted as the expected change in the response given a unit change in the predictor. Standardized estimates are calculated by scaling these estimates by the ratio of the standard deviation of the predictor over the standard deviation of the response."), digits=2) %>% 
+  kable_styling(latex_options = "HOLD_position") %>% 
+  row_spec(c(1,3,4,6,8),bold=T)
+
+# new table 5 - psem R2 for DAG in Fig 4a ---------------
+summary(fig4_modelList, .progressBar = FALSE)$R2 %>% 
+  mutate(`Mixed model` = ifelse(is.na(Conditional), "No", "Yes")) %>% 
+  select(Response, family, link, `Mixed model`, Marginal, Conditional) %>% 
+  rename("Family" = "family", 
+         "Link" = "link",
+         "Marginal R2" = "Marginal",
+         "Conditional R2" = "Conditional") %>% 
+  mutate(Response = case_when(Response == "pc1" ~ "PC1",
+                              Response == "pc2" ~ "PC2", 
+                              Response == "pc3" ~ "PC3",
+                              Response == "juv_age" ~ "Juvenile age",
+                              Response == "growth_resids" ~ "Juvenile growth rate")) %>%
+  mutate(Family = case_when(Family == "gaussian" ~ "Gaussian")) %>% 
+  kable(format="latex",
+      booktabs=TRUE,
+      caption="R-squared values for component models for the DAG in Figure 4A.",digits=2) %>% 
+  kable_styling(latex_options = "HOLD_position")
+
+
+
+# new table 6 - psem coefficients for DAG in Fig 5a ---------------
+summary(fig5_modelList, .progressBar = FALSE)$coefficients %>% 
+  select(1:3, 8, 4:7) %>% 
+  mutate_at(3:7, round, 2) %>% 
+  mutate_at(8, round, 3) %>% 
+  mutate_at(6, round, 0) %>% 
+  mutate(Response = case_when(Response == "num_times_chased_by_conspecifics" ~ "Times chased",
+                              Response == "juv_age" ~ "Juvenile age",
+                              Response == "growth_resids" ~ "Juv. growth rate",
+                              Response == "pc1" ~ "PC1",
+                              Response == "pc2" ~ "PC2",
+                              Response == "pc3" ~ "PC3")) %>% 
+  mutate(Predictor = case_when(Predictor == "adult_density_per7m2" ~ "Adult density",
+                              Predictor == "num_times_chased_by_conspecifics" ~ "Times chased", 
+                              Predictor == "num_times_chased_by_conspecifics:scaled_settlement_rad" ~ "Chased:Settlmt size",
+                              Predictor == "scaled_settlement_rad" ~ "Settlement size",
+                              Predictor == "growth_resids" ~ "Juv. growth rate",
+                              Predictor == "pc1" ~ "PC1",
+                              Predictor == "pc2" ~ "PC2",
+                              Predictor == "pc3" ~ "PC3")) %>% 
+  mutate(P.Value = scales::pvalue(P.Value)) %>%
+  kable(format="latex",
+      booktabs=TRUE,
+      caption= paste0("Path coefficients for the DAG in Figure 5A. The model is well fit to the data (C-statistic = ", round(summary(fig5_modelList, .progressBar = FALSE)$Cstat$Fisher.C, 2), ", df = ", summary(fig5_modelList, .progressBar = FALSE)$Cstat$df, ", ", "p-value = ", summary(fig5_modelList, .progressBar = FALSE)$Cstat$P.Value, "). A p-value < 0.05 would indicate that the hypothesized structure in the DAG is not supported by the data. Estimates correspond to partial regression coefficients and can be interpreted as the expected change in the response given a unit change in the predictor. Standardized estimates are calculated by scaling these estimates by the ratio of the standard deviation of the predictor over the standard deviation of the response."), digits=2) %>% 
+  kable_styling(latex_options = "HOLD_position") %>% 
+  row_spec(c(1,5,6,12,17,18,21, 23),bold=T)
+
+# new table 7 - psem R2 for DAG in Fig 5a --------------
+summary(fig5_modelList, .progressBar = FALSE)$R2 %>% 
+  mutate(`Mixed model` = ifelse(is.na(Conditional), "No", "Yes")) %>% 
+  select(Response, family, link, `Mixed model`, Marginal, Conditional) %>% 
+  rename("Family" = "family", 
+         "Link" = "link",
+         "Marginal R2" = "Marginal",
+         "Conditional R2" = "Conditional") %>% 
+  mutate(Response = case_when(Response == "num_times_chased_by_conspecifics" ~ "Times chased",
+                              Response == "juv_age" ~ "Juvenile age",
+                              Response == "growth_resids" ~ "Juvenile growth rate",
+                              Response == "pc1" ~ "PC1",
+                              Response == "pc2" ~ "PC2",
+                              Response == "pc3" ~ "PC3")) %>%
+  mutate(Family = case_when(Family == "gaussian" ~ "Gaussian",
+                            Family == "poisson" ~ "Poisson")) %>% 
+  kable(format="latex",
+      booktabs=TRUE,
+      caption="R-squared values for component models for the DAG in Figure 5A.",digits=2) %>% 
+  kable_styling(latex_options = "HOLD_position")
+
+
+```
+
