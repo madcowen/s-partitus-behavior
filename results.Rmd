@@ -1,6 +1,8 @@
 ---
 title: "Figures and Supplementary Material"
 output: pdf_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ## Main text figures
@@ -76,7 +78,7 @@ p1 <- nat_data %>%
     geom_sina(maxwidth = .6, scale = "count", seed = 1, size = 2, alpha = .3) +
     stat_summary(fun = median, geom = "point", shape = 95, size = 30, color = "black") + 
     xlab(" ") +
-    ylab("Size at settlement (um)") +
+    ylab("") +
     ylim(170, 276)+
     annotate("text", x=2.3, y=276, label= paste0("p = ", pv1)) 
   
@@ -85,7 +87,7 @@ p2 <- nat_data_2d %>%
       geom_sina(maxwidth = .6, scale = "count", seed = 1, size = 2, alpha = .3) +
       stat_summary(fun = median, geom = "point", shape = 95, size = 30, color = "hotpink") + 
       xlab("Survivorship\n(juvenile age)") +
-      ylab("Juvenile 1-2d\ngrowth rate (um/d)") +
+      ylab("") +
       ylim(3, 8.2)+
       annotate("text", x=2.3, y=8.2, label= paste0("p = ", pv2, "*")) 
 
@@ -94,7 +96,7 @@ p3 <- sixyrdata %>%
     geom_sina(maxwidth = .6, scale = "count", seed = 1, size = 2, alpha = .3) +
     stat_summary(fun = median, geom = "point", shape = 95, size = 30, color = "hotpink") + 
     xlab(" ") +
-    ylab(" ") +
+    ylab("Size at settlement (um)") +
     annotate("text", x=2.3, y=276, label= "p < 0.01*") 
   
 p4 <- sixyrdata_2d %>% 
@@ -102,15 +104,16 @@ p4 <- sixyrdata_2d %>%
       geom_sina(maxwidth = .6, scale = "count", seed = 1, size = 2, alpha = .3) +
       stat_summary(fun = median, geom = "point", shape = 95, size = 30, color = "hotpink") + 
       xlab("Survivorship\n(juvenile age)") +
-      ylab(" ") +
+      ylab("Juvenile 1-2d\ngrowth rate (um/d)") +
       ylim(3, 8.2) +
       annotate("text", x=2.3, y=8.2, label= "p < 0.01*") 
   
   
 ## plot
-{p1 + ggtitle("2008-2009")} + 
   {p3 + ggtitle("2003-2008")} + 
-  p2 + p4 + 
+{p1 + ggtitle("2008-2009")} + 
+  p4 + 
+  p2 + 
   plot_annotation(tag_levels = c("A")) &
   scale_x_discrete(labels = c("2-10 days", "11+ days")) 
 
@@ -166,7 +169,7 @@ plot_setrad_JG_2008 <-
                     values = colpal)+
   annotate("text", x = 2, y = 3,
            # x = -Inf, y = Inf, hjust = 0, vjust = 1, 
-           label = paste0("p =", pval_fig2_m1, "*")) + 
+           label = paste0("p = ", pval_fig2_m1, "*")) + 
   labs(title = "A    2008-2009")   
 
 
@@ -195,10 +198,11 @@ plot_setrad_JG_2003 <-
   scale_fill_manual(name = "Age\n(days)",
                     values = colpal)+
     annotate("text", x = 2, y = 2.5,
-              label = paste0("p =", pval_fig2_m2, "*")) + 
+              label = paste0("p = ", pval_fig2_m2, "*")) + 
   labs(title = "B    2003-2008")
 
-plot_setrad_JG_2008 + plot_setrad_JG_2003 + 
+plot_setrad_JG_2003 + 
+  plot_setrad_JG_2008 + 
   # plot_annotation(tag_levels = c("A")) +
   plot_layout(guides = "collect") &
   theme(legend.position = "right",
@@ -642,29 +646,29 @@ pv2 <- summary(age_jg12)$s.table[,4] %>% round(2)
 pv3 <- summary(age_jg)$s.table[,4] %>% round(2)
 
 p1 <- ggplot(data = predict_gam(age_ss), aes(x = juv_age, y = fit)) + 
-  geom_smooth_ci(size = 1, color = "black") +
   geom_jitter(data = nat_data, aes(x = juv_age, y = settlement_rad), width = 0.1) +
+  geom_smooth_ci(size = 1, color = "black") +
   annotate("text", x=12, y=275, label= paste0("p = ", pv1)) + 
   xlab(" ") +
-  ylab("Size at settlement (um)") +
+  ylab("") +
   ylim(170, 275)+
   geom_vline(xintercept = 14.5, color = "orange", linetype = 2) 
 
-p2 <- ggplot(data = predict_gam(age_jg12, values = list(meanTemp_juv = mean(nat_data_2d$meanTemp_juv_2d))), aes(x = juv_age, y = fit)) + 
-  geom_smooth_ci(size = 1, color = "hotpink") + 
+p2 <- ggplot(data = predict_gam(age_jg12, values = list(meanTemp_juv = mean(nat_data_2d$meanTemp_juv))), aes(x = juv_age, y = fit)) + 
   geom_jitter(data = nat_data_2d, aes(x = juv_age, y = jg_2d), width = 0.1) +
+  geom_smooth_ci(size = 1, color = "hotpink") + 
   annotate("text", x=12, y=8, label= "p < 0.01*") + 
   xlab(" ") +
-  ylab("Juvenile 1-2d\ngrowth rate (um/d)") +
+  ylab("") +
   ylim(3, 9) +
   geom_vline(xintercept = 14.5, color = "orange", linetype = 2) 
 
 p3 <- ggplot(data = predict_gam(age_jg, values = list(meanTemp_juv = mean(nat_data$meanTemp_juv))), aes(x = juv_age, y = fit)) + 
-  geom_smooth_ci(size = 1, color = "hotpink") + 
   geom_jitter(data = nat_data, aes(x = juv_age, y = juv_mean_growth_rate), width = 0.1) +
+  geom_smooth_ci(size = 1, color = "hotpink") + 
   annotate("text", x=12, y=8.5, label= "p < 0.01*") + 
   xlab("Juvenile age (days)") +
-  ylab("Juvenile growth rate (um/d)") +
+  ylab("") +
   ylim(3, 9) +
   geom_vline(xintercept = 14.5, color = "orange", linetype = 2) 
 
@@ -697,29 +701,34 @@ p4 <- ggplot(data = predict_gam(age_ss), aes(x = juv_age, y = fit)) +
   geom_smooth_ci(size = 1, color = "hotpink") +
   geom_vline(xintercept = 14.5, color = "orange", linetype = 2) +
   xlab(" ") +
-  ylab(" ") +
+  ylab("Size at settlement (um)") +
   annotate("text", x=28, y=275, label= "p < 0.01*") 
 
-p5 <- ggplot(data = predict_gam(age_jg12, values = list(meanTemp_juv = mean(sixyrdata_2d$meanTemp_juv_2d))), aes(x = juv_age, y = fit)) + 
+p5 <- ggplot(data = predict_gam(age_jg12, values = list(meanTemp_juv = mean(sixyrdata_2d$meanTemp_juv))), aes(x = juv_age, y = fit)) + 
   geom_point(data = sixyrdata_2d, aes(x = juv_age, y = jg_2d)) +
   geom_smooth_ci(size = 1, color = "hotpink") + 
   annotate("text", x=28, y=8, label= "p < 0.01*") + 
   geom_vline(xintercept = 14.5, color = "orange", linetype = 2) +
   ylim(3, 9) +
   xlab(" ") +
-  ylab(" ") 
+  ylab("Juvenile 1-2d\ngrowth rate (um/d)") 
 
 p6 <- ggplot(data = predict_gam(age_jg, values = list(meanTemp_juv = mean(sixyrdata$meanTemp_juv))), aes(x = juv_age, y = fit)) + 
   geom_point(data = sixyrdata, aes(x = juv_age, y = juv_mean_growth_rate)) +
   geom_smooth_ci(size = 1, color = "hotpink") + 
   annotate("text", x=28, y=8.5, label= "p < 0.01*") + 
   xlab("Juvenile age (days)") +
-  ylab(" ") +
+  ylab("Juvenile growth rate (um/d)") +
   ylim(3, 9) +
   geom_vline(xintercept = 14.5, color = "orange", linetype = 2) 
 
 
-{p1 + ggtitle("2008-2009")} + {p4 + ggtitle("2003-2008")} + p2 + p5 + p3 + p6 +
+  {p4 + ggtitle("2003-2008")} + 
+{p1 + ggtitle("2008-2009")} + 
+  p5 + 
+  p2 + 
+  p6 +
+  p3 + 
   plot_layout(nrow = 3) +
   plot_annotation(tag_levels = c("A"))
 
