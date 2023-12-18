@@ -170,7 +170,7 @@ plot_setrad_JG_2008 <-
   annotate("text", x = 2, y = 3,
            # x = -Inf, y = Inf, hjust = 0, vjust = 1, 
            label = paste0("p = ", pval_fig2_m1, "*")) + 
-  labs(title = "A    2008-2009")   
+  labs(title = "B    2008-2009")   
 
 
 plot_setrad_JG_2003 <- 
@@ -199,7 +199,7 @@ plot_setrad_JG_2003 <-
                     values = colpal)+
     annotate("text", x = 2, y = 2.5,
               label = paste0("p = ", pval_fig2_m2, "*")) + 
-  labs(title = "B    2003-2008")
+  labs(title = "A    2003-2008")
 
 plot_setrad_JG_2003 + 
   plot_setrad_JG_2008 + 
