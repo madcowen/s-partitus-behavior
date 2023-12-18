@@ -1,0 +1,1 @@
+Data and code for Rankin TL, Cowen MC, Kandlikar GS, Shulzitski K and Sponaugle S (2023) Behavioral mechanisms underlying trait-mediated survival in a coral reef fish. Front. Fish Sci. 1:1276343. doi: 10.3389/frish.2023.1276343
